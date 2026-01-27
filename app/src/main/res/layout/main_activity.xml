@@ -1,0 +1,24 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:gravity="center">
+
+    <EditText
+        android:id="@+id/editMacAddress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:autofillHints="name"
+        android:hint="@string/mac_es_00_11_22_33_ff_ee"
+        android:inputType="textNoSuggestions"
+        android:textAllCaps="true" />
+
+    <Button
+        android:id="@+id/btnSaveAndStart"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/start_service"
+        android:layout_marginTop="10dp"/>
+    
+</LinearLayout>
