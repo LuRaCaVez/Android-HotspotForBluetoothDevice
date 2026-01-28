@@ -3,6 +3,7 @@ package com.luracavez.hotspotforbluetoothdevice
 import android.Manifest
 import android.content.Intent
 import android.os.Bundle
+import android.os.ParcelUuid
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
@@ -17,22 +18,23 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContentView(R.layout.main_activity)
 
-        val editMac = findViewById<EditText>(R.id.editMacAddress)
+        val editUUID = findViewById<EditText>(R.id.editUUID)
         val btnStart = findViewById<Button>(R.id.btnSaveAndStart)
         val sharedPrefs = getSharedPreferences("HotspotConfig", MODE_PRIVATE)
 
-        editMac.setText(sharedPrefs.getString("target_mac", ""))
+        editUUID.setText(sharedPrefs.getString("target_uuid", ""))
 
         btnStart.setOnClickListener {
-            val mac = editMac.text.toString().trim()
-            if (mac.length == 17) {
-                sharedPrefs.edit { putString("target_mac", mac) }
-
+            try {
+                val bleUUID = editUUID.text.toString().trim()
+                ParcelUuid.fromString(bleUUID)
+                sharedPrefs.edit { putString("target_uuid", bleUUID) }
                 checkPermissionsAndStart()
-            } else {
-                Toast.makeText(this, "MAC not valid: it must be 17 chars length", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "UUID not valid!", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -40,8 +42,15 @@ class MainActivity : AppCompatActivity() {
     private fun checkPermissionsAndStart() {
         val permissions = mutableListOf<String>()
         permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        permissions.add(Manifest.permission.RECEIVE_BOOT_COMPLETED)
+        permissions.add(Manifest.permission.BLUETOOTH_SCAN)
         permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-
+        permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
+        permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        permissions.add(Manifest.permission.FOREGROUND_SERVICE)
+        permissions.add(Manifest.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE)
+        permissions.add(Manifest.permission.ACCESS_WIFI_STATE)
         ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 100)
 
         if (!Settings.System.canWrite(this)) {
@@ -50,12 +59,12 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         } else {
             startService()
+            finish()
         }
     }
 
     private fun startService() {
-        val serviceIntent = Intent(this, HotspotService::class.java)
+        val serviceIntent = Intent(this, BleService::class.java)
         ContextCompat.startForegroundService(this, serviceIntent)
-        finish()
     }
 }
