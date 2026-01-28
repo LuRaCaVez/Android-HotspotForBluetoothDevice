@@ -16,6 +16,8 @@
     <string name="attachment_summary_on">Automatically download attachments for incoming emails
     </string>
     <string name="attachment_summary_off">Only download attachments when manually requested</string>
-    <string name="start_service">Start Service</string>
-    <string name="mac_es_00_11_22_33_ff_ee">MAC (es. 00:11:22:33:FF:EE)</string>
+    <string name="uuid_es">00000000–2222–3333–4444-xxxxxxxxxxxx</string>
+    <string name="mac_es">FF:AA:33:22:11:00</string>
+    <string name="start_service_bt">Start Classic Bluetooth Service</string>
+    <string name="start_service_ble">Start BLE Service</string>
 </resources>
