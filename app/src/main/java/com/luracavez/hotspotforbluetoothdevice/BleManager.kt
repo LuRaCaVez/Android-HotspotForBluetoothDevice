@@ -1,7 +1,8 @@
 package com.luracavez.hotspotforbluetoothdevice
 
 import android.Manifest
-import android.bluetooth.*
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
@@ -20,6 +21,7 @@ private const val DEBOUNCER_SECONDS = 4000L
 class BleManager(
     private val context: Context,
     private val targetUUID: String,
+    private val targetMAC: String,
     private val onStatusChanged: (String) -> Unit
 ) {
 
@@ -38,13 +40,13 @@ class BleManager(
 
     private fun onDeviceConnected() {
         Log.d(LOG_TAG, "Device connected")
-        onStatusChanged("Connected")
+        onStatusChanged(CONNECTED_MESSAGE)
         HotspotManager.toggleHotspot(context, true)
     }
 
     private fun onDeviceDisconnected() {
         Log.d(LOG_TAG, "Device disconnected")
-        onStatusChanged("Disconnected")
+        onStatusChanged(DISCONNECTED_MESSAGE)
         HotspotManager.toggleHotspot(context, false)
     }
 
@@ -78,10 +80,6 @@ class BleManager(
 
             Log.d(LOG_TAG, "Found ${device.address} with strength: $rssi dBm")
 
-            if (device?.address?.equals("34:C4:59:86:2F:4E", ignoreCase = true) != true) {
-                return
-            }
-
             handler.removeCallbacks(lostDeviceRunnable)
             handler.postDelayed(lostDeviceRunnable, LOST_TIMEOUT)
 
@@ -105,9 +103,14 @@ class BleManager(
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     fun startScanning() {
-        val filter = ScanFilter.Builder()
-            //.setServiceUuid(ParcelUuid.fromString(targetUUID))
-            .build()
+        val builder = ScanFilter.Builder()
+        if (targetUUID.isNotEmpty()) {
+            builder.setServiceUuid(ParcelUuid.fromString(targetUUID))
+        }
+        if (targetMAC.isNotEmpty()) {
+            builder.setDeviceAddress(targetMAC)
+        }
+        val filter = builder.build()
 
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_BALANCED)

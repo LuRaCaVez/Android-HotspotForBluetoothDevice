@@ -10,9 +10,8 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.core.content.edit
+import androidx.core.net.toUri
 
 class MainActivity : AppCompatActivity() {
 
@@ -22,20 +21,48 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.main_activity)
 
         val editUUID = findViewById<EditText>(R.id.editUUID)
-        val btnStart = findViewById<Button>(R.id.btnSaveAndStart)
-        val sharedPrefs = getSharedPreferences("HotspotConfig", MODE_PRIVATE)
+        val editMAC = findViewById<EditText>(R.id.editMAC)
+        val btnStartBLE = findViewById<Button>(R.id.btnSaveAndStartBLE)
+        val btnStartBT = findViewById<Button>(R.id.btnSaveAndStartBT)
+        val sharedPrefs = getSharedPreferences(SHARED_NAME, MODE_PRIVATE)
 
-        editUUID.setText(sharedPrefs.getString("target_uuid", ""))
+        editUUID.setText(sharedPrefs.getString(UUID_SHARED_KEY, ""))
+        editMAC.setText(sharedPrefs.getString(MAC_SHARED_KEY, ""))
 
-        btnStart.setOnClickListener {
-            try {
-                val bleUUID = editUUID.text.toString().trim()
-                ParcelUuid.fromString(bleUUID)
-                sharedPrefs.edit { putString("target_uuid", bleUUID) }
-                checkPermissionsAndStart()
-            } catch (e: Exception) {
-                Toast.makeText(this, "UUID not valid!", Toast.LENGTH_SHORT).show()
+        btnStartBLE.setOnClickListener {
+            val mac = editMAC.text.toString().trim()
+            val uuid = editUUID.text.toString().trim()
+            if (mac.isEmpty() && uuid.isEmpty()) {
+                Toast.makeText(this, "One of MAC or UUID must be filled!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
             }
+            if (mac.isNotEmpty() && mac.length != 17) {
+                Toast.makeText(this, "MAC not valid!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (uuid.isNotEmpty()) {
+                try {
+                    ParcelUuid.fromString(uuid)
+                } catch (e: Exception) {
+                    Toast.makeText(this, "UUID not valid!", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+            }
+            sharedPrefs.edit { putString(UUID_SHARED_KEY, uuid) }
+            sharedPrefs.edit { putString(MAC_SHARED_KEY, mac) }
+            sharedPrefs.edit { putString(MODE_SHARED_KEY, "BLE") }
+            checkPermissionsAndStart()
+        }
+
+        btnStartBT.setOnClickListener {
+            val mac = editMAC.text.toString().trim()
+            if (mac.length != 17) {
+                Toast.makeText(this, "MAC not valid!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            sharedPrefs.edit { putString(MAC_SHARED_KEY, mac) }
+            sharedPrefs.edit { putString(MODE_SHARED_KEY, "BT") }
+            checkPermissionsAndStart()
         }
     }
 
@@ -58,13 +85,8 @@ class MainActivity : AppCompatActivity() {
             intent.data = "package:$packageName".toUri()
             startActivity(intent)
         } else {
-            startService()
+            ServiceManager.startService(this)
             finish()
         }
-    }
-
-    private fun startService() {
-        val serviceIntent = Intent(this, BleService::class.java)
-        ContextCompat.startForegroundService(this, serviceIntent)
     }
 }

@@ -12,22 +12,24 @@ import android.os.Looper
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 
-private const val CHANNEL_ID = "BleServiceChannel"
-private const val NOTIFICATION_ID = 1
-
 class BleService : Service() {
     private lateinit var bleManager: BleManager
 
     private var isRunning = false
 
-    private fun getTargetUUID(): String? {
-        val sharedPrefs = getSharedPreferences("HotspotConfig", MODE_PRIVATE)
-        return sharedPrefs.getString("target_uuid", null)
+    private fun getTargetUUID(): String {
+        val sharedPrefs = getSharedPreferences(SHARED_NAME, MODE_PRIVATE)
+        return sharedPrefs.getString(UUID_SHARED_KEY, "") ?: ""
+    }
+
+    private fun getTargetMAC(): String {
+        val sharedPrefs = getSharedPreferences(SHARED_NAME, MODE_PRIVATE)
+        return sharedPrefs.getString(MAC_SHARED_KEY, "") ?: ""
     }
 
     private fun createNotification(statusText: String) : Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("BLE Monitor Active")
+            .setContentTitle(NOTIFICATION_TITLE_BLE)
             .setContentText(statusText)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setOngoing(true)
@@ -45,23 +47,22 @@ class BleService : Service() {
 
         val serviceChannel = NotificationChannel(
             CHANNEL_ID,
-            "Ble Service Channel",
+            NOTIFICATION_CHANNEL_NAME,
             NotificationManager.IMPORTANCE_LOW
         )
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(serviceChannel)
 
-        startForeground(NOTIFICATION_ID, createNotification("Disconnected"), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        startForeground(NOTIFICATION_ID, createNotification(DISCONNECTED_MESSAGE), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
 
-        val bleUUID = getTargetUUID()
-        if (bleUUID != null && !isRunning) {
+        if (!isRunning) {
             isRunning = true
-            bleManager = BleManager(this, bleUUID) { status ->
+            bleManager = BleManager(this, getTargetUUID(), getTargetMAC()) { status ->
                 updateNotification(status)
             }
             Handler(Looper.getMainLooper()).post {
