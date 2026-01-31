@@ -13,19 +13,23 @@ import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import kotlin.math.pow
 
 private const val LOG_TAG = "BleManager"
-private const val LOST_TIMEOUT = 10000L
-private const val DEBOUNCER_SECONDS = 4000L
+private const val CHECK_DISTANCE_PERIOD = 3000L
+private const val LOST_TIMEOUT = 60000L
+private const val RSSI_WINDOW_SIZE = 10
 
 class BleManager(
     private val context: Context,
     private val targetUUID: String,
     private val targetMAC: String,
-    private val onStatusChanged: (String) -> Unit
+    private val updateNotification: (String) -> Unit
 ) {
 
-    private val handler = Handler(Looper.getMainLooper())
+    private val deviceHandler =  Handler(Looper.getMainLooper())
+
+    private val lostDeviceHandler =  Handler(Looper.getMainLooper())
 
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
         val manager = context.getSystemService(BluetoothManager::class.java)
@@ -34,42 +38,71 @@ class BleManager(
 
     private val bleScanner = bluetoothAdapter?.bluetoothLeScanner
 
-    private var isNearConfirmed = false
+    private val rssiWindow = mutableListOf<Int>()
 
-    private val debounceHandler = Handler(Looper.getMainLooper())
+    private var isDeviceNear = false
 
-    private fun onDeviceConnected() {
-        Log.d(LOG_TAG, "Device connected")
-        onStatusChanged(CONNECTED_MESSAGE)
-        HotspotManager.toggleHotspot(context, true)
-    }
-
-    private fun onDeviceDisconnected() {
-        Log.d(LOG_TAG, "Device disconnected")
-        onStatusChanged(DISCONNECTED_MESSAGE)
-        HotspotManager.toggleHotspot(context, false)
+    private val deviceRunnable = object : Runnable {
+        override fun run() {
+            if (rssiWindow.isNotEmpty()) {
+                val averageRssi = rssiWindow.average().toInt()
+                val distance = calculateDistance(averageRssi)
+                val distanceInfo = "Distance: %.2fm".format(distance)
+                val isNear = isNear(distance)
+                if (isNear == true && !isDeviceNear) {
+                    onDeviceNear()
+                } else if (isNear == false && isDeviceNear) {
+                    onDeviceFar()
+                }
+                if (isDeviceNear) {
+                    updateNotification("$CONNECTED_MESSAGE - $distanceInfo")
+                } else {
+                    updateNotification("$DISCONNECTED_MESSAGE - $distanceInfo")
+                }
+            }
+            deviceHandler.postDelayed(this, CHECK_DISTANCE_PERIOD)
+        }
     }
 
     private val lostDeviceRunnable = Runnable {
-        debounceHandler.removeCallbacks(confirmNearRunnable)
-        if (isNearConfirmed) {
-            isNearConfirmed = false
-            onDeviceDisconnected()
+        if (isDeviceNear) {
+            onDeviceFar()
+        } else {
+            updateNotification(DISCONNECTED_MESSAGE)
         }
     }
 
-    private val confirmFarRunnable = Runnable {
-        if (isNearConfirmed) {
-            isNearConfirmed = false
-            onDeviceDisconnected()
-        }
+    fun saveRssi(newRssi: Int) {
+        rssiWindow.add(newRssi)
+        if (rssiWindow.size > RSSI_WINDOW_SIZE) rssiWindow.removeAt(0)
     }
 
-    private val confirmNearRunnable = Runnable {
-        if (!isNearConfirmed) {
-            isNearConfirmed = true
-            onDeviceConnected()
+    fun calculateDistance(rssi: Int, measuredPower: Int = -59): Double {
+        val pathLossExponent = 3.0
+        return 10.0.pow((measuredPower - rssi) / (10 * pathLossExponent))
+    }
+
+    fun isNear(distance: Double): Boolean? {
+        if (distance < 2) {
+            return true
+        } else if (distance > 4) {
+            return false
         }
+        return null
+    }
+
+    fun onDeviceFar() {
+        Log.d(LOG_TAG, "Device disconnected")
+        isDeviceNear = false
+        updateNotification(DISCONNECTED_MESSAGE)
+        HotspotManager.toggleHotspot(context, false)
+    }
+
+    fun onDeviceNear() {
+        Log.d(LOG_TAG, "Device connected")
+        isDeviceNear = true
+        updateNotification(CONNECTED_MESSAGE)
+        HotspotManager.toggleHotspot(context, true)
     }
 
     private val scanCallback = object : ScanCallback() {
@@ -79,25 +112,10 @@ class BleManager(
             val rssi = result.rssi
 
             Log.d(LOG_TAG, "Found ${device.address} with strength: $rssi dBm")
+            saveRssi(rssi)
 
-            handler.removeCallbacks(lostDeviceRunnable)
-            handler.postDelayed(lostDeviceRunnable, LOST_TIMEOUT)
-
-            if (rssi > -70) {
-                debounceHandler.removeCallbacks(confirmFarRunnable)
-                if (!isNearConfirmed) {
-                    if (!debounceHandler.hasCallbacks(confirmNearRunnable)) {
-                        debounceHandler.postDelayed(confirmNearRunnable, DEBOUNCER_SECONDS)
-                    }
-                }
-            } else if (rssi < -95) {
-                debounceHandler.removeCallbacks(confirmNearRunnable)
-                if (isNearConfirmed) {
-                    if (!debounceHandler.hasCallbacks(confirmFarRunnable)) {
-                        debounceHandler.postDelayed(confirmFarRunnable, DEBOUNCER_SECONDS)
-                    }
-                }
-            }
+            lostDeviceHandler.removeCallbacks(lostDeviceRunnable)
+            lostDeviceHandler.postDelayed(lostDeviceRunnable, LOST_TIMEOUT)
         }
     }
 
@@ -113,16 +131,20 @@ class BleManager(
         val filter = builder.build()
 
         val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+            .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
             .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
             .build()
 
         bleScanner?.startScan(listOf(filter), settings, scanCallback)
+        deviceHandler.postDelayed(deviceRunnable, CHECK_DISTANCE_PERIOD)
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     fun stopScanning() {
         bleScanner?.stopScan(scanCallback)
+        deviceHandler.removeCallbacks(deviceRunnable)
+        lostDeviceHandler.removeCallbacks(lostDeviceRunnable)
     }
 }

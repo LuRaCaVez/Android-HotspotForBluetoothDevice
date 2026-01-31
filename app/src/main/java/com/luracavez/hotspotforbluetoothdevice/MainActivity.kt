@@ -23,7 +23,6 @@ class MainActivity : AppCompatActivity() {
         val editUUID = findViewById<EditText>(R.id.editUUID)
         val editMAC = findViewById<EditText>(R.id.editMAC)
         val btnStartBLE = findViewById<Button>(R.id.btnSaveAndStartBLE)
-        val btnStartBT = findViewById<Button>(R.id.btnSaveAndStartBT)
         val sharedPrefs = getSharedPreferences(SHARED_NAME, MODE_PRIVATE)
 
         editUUID.setText(sharedPrefs.getString(UUID_SHARED_KEY, ""))
@@ -50,18 +49,6 @@ class MainActivity : AppCompatActivity() {
             }
             sharedPrefs.edit { putString(UUID_SHARED_KEY, uuid) }
             sharedPrefs.edit { putString(MAC_SHARED_KEY, mac) }
-            sharedPrefs.edit { putString(MODE_SHARED_KEY, "BLE") }
-            checkPermissionsAndStart()
-        }
-
-        btnStartBT.setOnClickListener {
-            val mac = editMAC.text.toString().trim()
-            if (mac.length != 17) {
-                Toast.makeText(this, "MAC not valid!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            sharedPrefs.edit { putString(MAC_SHARED_KEY, mac) }
-            sharedPrefs.edit { putString(MODE_SHARED_KEY, "BT") }
             checkPermissionsAndStart()
         }
     }

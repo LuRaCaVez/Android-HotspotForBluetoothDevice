@@ -60,14 +60,16 @@ class BleService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
 
-        if (!isRunning) {
-            isRunning = true
-            bleManager = BleManager(this, getTargetUUID(), getTargetMAC()) { status ->
-                updateNotification(status)
-            }
-            Handler(Looper.getMainLooper()).post {
-                bleManager.startScanning()
-            }
+        if (isRunning) {
+            bleManager.stopScanning()
+        }
+
+        isRunning = true
+        bleManager = BleManager(this, getTargetUUID(), getTargetMAC()) { status ->
+            updateNotification(status)
+        }
+        Handler(Looper.getMainLooper()).post {
+            bleManager.startScanning()
         }
 
         return START_STICKY
@@ -79,6 +81,7 @@ class BleService : Service() {
     override fun onDestroy() {
         super.onDestroy()
 
+        isRunning = false
         bleManager.stopScanning()
     }
 }

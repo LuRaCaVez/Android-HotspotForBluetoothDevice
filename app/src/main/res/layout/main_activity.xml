@@ -30,11 +30,4 @@
         android:text="@string/start_service_ble"
         android:layout_marginTop="10dp"/>
 
-    <Button
-        android:id="@+id/btnSaveAndStartBT"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/start_service_bt"
-        android:layout_marginTop="10dp"/>
-    
 </LinearLayout>
