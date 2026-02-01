@@ -70,6 +70,7 @@ class BleManager(
         } else {
             updateNotification(DISCONNECTED_MESSAGE)
         }
+        rssiWindow.removeAll { true }
     }
 
     fun saveRssi(newRssi: Int) {
@@ -83,9 +84,9 @@ class BleManager(
     }
 
     fun isNear(distance: Double): Boolean? {
-        if (distance < 2) {
+        if (distance < 3) {
             return true
-        } else if (distance > 4) {
+        } else if (distance > 6) {
             return false
         }
         return null
@@ -108,11 +109,7 @@ class BleManager(
     private val scanCallback = object : ScanCallback() {
         @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val device = result.device
-            val rssi = result.rssi
-
-            Log.d(LOG_TAG, "Found ${device.address} with strength: $rssi dBm")
-            saveRssi(rssi)
+            saveRssi(result.rssi)
 
             lostDeviceHandler.removeCallbacks(lostDeviceRunnable)
             lostDeviceHandler.postDelayed(lostDeviceRunnable, LOST_TIMEOUT)

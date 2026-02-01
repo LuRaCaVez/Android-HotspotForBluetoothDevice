@@ -17,6 +17,10 @@ class BleService : Service() {
 
     private var isRunning = false
 
+    private val notificationManager: NotificationManager? by lazy {
+        getSystemService(NotificationManager::class.java)
+    }
+
     private fun getTargetUUID(): String {
         val sharedPrefs = getSharedPreferences(SHARED_NAME, MODE_PRIVATE)
         return sharedPrefs.getString(UUID_SHARED_KEY, "") ?: ""
@@ -38,8 +42,7 @@ class BleService : Service() {
     }
 
     private fun updateNotification(statusText: String) {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, createNotification(statusText))
+        notificationManager?.notify(NOTIFICATION_ID, createNotification(statusText))
     }
 
     override fun onCreate() {
@@ -50,8 +53,7 @@ class BleService : Service() {
             NOTIFICATION_CHANNEL_NAME,
             NotificationManager.IMPORTANCE_LOW
         )
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(serviceChannel)
+        notificationManager?.createNotificationChannel(serviceChannel)
 
         startForeground(NOTIFICATION_ID, createNotification(DISCONNECTED_MESSAGE), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
     }
@@ -62,6 +64,7 @@ class BleService : Service() {
 
         if (isRunning) {
             bleManager.stopScanning()
+            updateNotification(DISCONNECTED_MESSAGE)
         }
 
         isRunning = true

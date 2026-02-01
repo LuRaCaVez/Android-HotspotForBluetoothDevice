@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
         val editUUID = findViewById<EditText>(R.id.editUUID)
         val editMAC = findViewById<EditText>(R.id.editMAC)
         val btnStartBLE = findViewById<Button>(R.id.btnSaveAndStartBLE)
+        val btnViewLogs = findViewById<Button>(R.id.btnViewLogs)
         val sharedPrefs = getSharedPreferences(SHARED_NAME, MODE_PRIVATE)
 
         editUUID.setText(sharedPrefs.getString(UUID_SHARED_KEY, ""))
@@ -50,6 +51,10 @@ class MainActivity : AppCompatActivity() {
             sharedPrefs.edit { putString(UUID_SHARED_KEY, uuid) }
             sharedPrefs.edit { putString(MAC_SHARED_KEY, mac) }
             checkPermissionsAndStart()
+        }
+
+        btnViewLogs.setOnClickListener {
+            startActivity(Intent(this, LogViewerActivity::class.java))
         }
     }
 
