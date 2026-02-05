@@ -118,6 +118,8 @@ class BleManager(
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     fun startScanning() {
+        Log.d(LOG_TAG, "Start scanning....")
+
         val builder = ScanFilter.Builder()
         if (targetUUID.isNotEmpty()) {
             builder.setServiceUuid(ParcelUuid.fromString(targetUUID))
@@ -140,6 +142,8 @@ class BleManager(
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     fun stopScanning() {
+        Log.d(LOG_TAG, "Stop scanning.")
+
         bleScanner?.stopScan(scanCallback)
         deviceHandler.removeCallbacks(deviceRunnable)
         lostDeviceHandler.removeCallbacks(lostDeviceRunnable)

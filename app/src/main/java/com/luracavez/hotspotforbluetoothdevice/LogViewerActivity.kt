@@ -32,16 +32,13 @@ class LogViewerActivity : AppCompatActivity() {
 
     private fun startLogReader() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val pid = android.os.Process.myPid()
-            val command = "logcat -v time --pid=$pid | grep Manager"
-
             try {
-                val process = Runtime.getRuntime().exec(command)
+                val process = Runtime.getRuntime().exec("logcat")
                 val reader = BufferedReader(InputStreamReader(process.inputStream))
 
                 while (isReading) {
                     val line = reader.readLine()
-                    if (line != null) {
+                    if (line != null && line.contains(Regex("HotspotManager|BleManager|BootReceiver"))) {
                         withContext(Dispatchers.Main) {
                             logTextView.append(line + "\n")
                         }
