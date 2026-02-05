@@ -77,7 +77,8 @@ class MainActivity : AppCompatActivity() {
             intent.data = "package:$packageName".toUri()
             startActivity(intent)
         } else {
-            ServiceManager.startService(this)
+            val serviceIntent = Intent(this, BleService::class.java)
+            this.startForegroundService(serviceIntent)
             finish()
         }
     }

@@ -16,7 +16,6 @@ class LogViewerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Simple programmatic UI setup
         val scrollView = androidx.core.widget.NestedScrollView(this)
         logTextView = TextView(this).apply {
             setPadding(32, 32, 32, 32)
@@ -28,16 +27,13 @@ class LogViewerActivity : AppCompatActivity() {
         scrollView.addView(logTextView)
         setContentView(scrollView)
 
-        // Start the log reader
         startLogReader()
     }
 
     private fun startLogReader() {
         lifecycleScope.launch(Dispatchers.IO) {
             val pid = android.os.Process.myPid()
-            // --pid: only logs from this app
-            // -v time: include timestamps
-            val command = "logcat -v time --pid=$pid"
+            val command = "logcat -v time --pid=$pid | grep Manager"
 
             try {
                 val process = Runtime.getRuntime().exec(command)
@@ -46,13 +42,11 @@ class LogViewerActivity : AppCompatActivity() {
                 while (isReading) {
                     val line = reader.readLine()
                     if (line != null) {
-                        // Switch to Main thread to update UI
                         withContext(Dispatchers.Main) {
                             logTextView.append(line + "\n")
-                            // Optional: Auto-scroll logic could go here
                         }
                     }
-                    yield() // Check for cancellation
+                    yield()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -64,6 +58,7 @@ class LogViewerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        isReading = false // Stop the loop when activity is closed
+
+        isReading = false
     }
 }
