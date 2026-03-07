@@ -3,7 +3,7 @@
 A specialized Android utility that automatically toggles your phone's Wi-Fi hotspot based on the physical distance to a specific device, calculated via a **BLE (Bluetooth Low Energy)** service.
 
 ## 📱 Compatibility
-- **Primary Test Environment:** Realme 8 (Android 13).
+- **Primary Test Environment:** Realme 8 (Android 13) - Samsung S21+ (Android 15)
 - **Other Devices:** Designed for Android 10 and above. Note that hotspot APIs and BLE scanning behaviors are often manufacturer-specific.
 
 ## 🚀 How It Works
