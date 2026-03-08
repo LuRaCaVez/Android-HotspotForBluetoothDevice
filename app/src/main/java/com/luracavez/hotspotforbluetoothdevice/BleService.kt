@@ -71,9 +71,9 @@ class BleService : Service() {
         bleManager = BleManager(this, getTargetUUID(), getTargetMAC()) { status ->
             updateNotification(status)
         }
-        Handler(Looper.getMainLooper()).post {
+        Handler(Looper.getMainLooper()).postDelayed({
             bleManager.startScanning()
-        }
+        }, 250)
 
         return START_STICKY
     }

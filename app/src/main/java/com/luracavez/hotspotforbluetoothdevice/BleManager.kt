@@ -109,15 +109,29 @@ class BleManager(
     private val scanCallback = object : ScanCallback() {
         @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            saveRssi(result.rssi)
+            super.onScanResult(callbackType, result)
 
+            Log.d(LOG_TAG, "Received BLE message from: %s".format(result.device.address))
+
+            saveRssi(result.rssi)
             lostDeviceHandler.removeCallbacks(lostDeviceRunnable)
             lostDeviceHandler.postDelayed(lostDeviceRunnable, LOST_TIMEOUT)
+        }
+
+        override fun onScanFailed(errorCode: Int) {
+            super.onScanFailed(errorCode)
+
+            Log.e(LOG_TAG, "Scan failed errorCode: %d".format(errorCode))
         }
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     fun startScanning() {
+        if (targetUUID.isEmpty() && targetMAC.isEmpty()) {
+            Log.d(LOG_TAG, "Skip scanning because target is not set.")
+            return
+        }
+
         Log.d(LOG_TAG, "Start scanning....")
 
         val builder = ScanFilter.Builder()

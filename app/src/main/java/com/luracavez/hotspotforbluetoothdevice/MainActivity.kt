@@ -3,6 +3,8 @@ package com.luracavez.hotspotforbluetoothdevice
 import android.Manifest
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelUuid
 import android.provider.Settings
 import android.widget.Button
@@ -30,20 +32,20 @@ class MainActivity : AppCompatActivity() {
         editMAC.setText(sharedPrefs.getString(MAC_SHARED_KEY, ""))
 
         btnStartBLE.setOnClickListener {
-            val mac = editMAC.text.toString().trim()
+            val mac = editMAC.text.toString().trim().uppercase()
             val uuid = editUUID.text.toString().trim()
             if (mac.isEmpty() && uuid.isEmpty()) {
                 Toast.makeText(this, "One of MAC or UUID must be filled!", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            if (mac.isNotEmpty() && mac.length != 17) {
+            if (mac.isNotEmpty() && !isValidMacAddress(mac)) {
                 Toast.makeText(this, "MAC not valid!", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             if (uuid.isNotEmpty()) {
                 try {
                     ParcelUuid.fromString(uuid)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     Toast.makeText(this, "UUID not valid!", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
@@ -56,6 +58,12 @@ class MainActivity : AppCompatActivity() {
         btnViewLogs.setOnClickListener {
             startActivity(Intent(this, LogViewerActivity::class.java))
         }
+    }
+
+    private fun isValidMacAddress(mac: String): Boolean {
+        if (mac.length != 17) return false
+        val macRegex = Regex("^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
+        return macRegex.matches(mac)
     }
 
     private fun checkPermissionsAndStart() {
@@ -76,10 +84,15 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
             intent.data = "package:$packageName".toUri()
             startActivity(intent)
-        } else {
-            val serviceIntent = Intent(this, BleService::class.java)
-            this.startForegroundService(serviceIntent)
-            finish()
+            return
         }
+
+        val serviceIntent = Intent(this, BleService::class.java)
+        startForegroundService(serviceIntent)
+        Toast.makeText(this, "Service started!", Toast.LENGTH_SHORT).show()
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            finish()
+        }, 750)
     }
 }
