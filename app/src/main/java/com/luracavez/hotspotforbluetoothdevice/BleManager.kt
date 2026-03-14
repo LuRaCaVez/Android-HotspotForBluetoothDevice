@@ -16,9 +16,10 @@ import androidx.annotation.RequiresPermission
 import kotlin.math.pow
 
 private const val LOG_TAG = "BleManager"
-private const val CHECK_DISTANCE_PERIOD = 3000L
+private const val CHECK_DISTANCE_PERIOD = 6000L
 private const val LOST_TIMEOUT = 60000L
-private const val RSSI_WINDOW_SIZE = 10
+private const val SCAN_REPORT_DELAY = 5000L
+private const val RSSI_WINDOW_SIZE = 2
 
 class BleManager(
     private val context: Context,
@@ -107,15 +108,17 @@ class BleManager(
     }
 
     private val scanCallback = object : ScanCallback() {
-        @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            super.onScanResult(callbackType, result)
+        override fun onBatchScanResults(results: MutableList<ScanResult>) {
+            super.onBatchScanResults(results)
 
-            Log.d(LOG_TAG, "Received BLE message from: %s".format(result.device.address))
+            Log.d(LOG_TAG, "Received %d BLE messages in batch".format(results.count()))
 
-            saveRssi(result.rssi)
-            lostDeviceHandler.removeCallbacks(lostDeviceRunnable)
-            lostDeviceHandler.postDelayed(lostDeviceRunnable, LOST_TIMEOUT)
+            if (results.count() > 0)
+            {
+                results.forEach { saveRssi(it.rssi) }
+                lostDeviceHandler.removeCallbacks(lostDeviceRunnable)
+                lostDeviceHandler.postDelayed(lostDeviceRunnable, LOST_TIMEOUT)
+            }
         }
 
         override fun onScanFailed(errorCode: Int) {
@@ -144,10 +147,9 @@ class BleManager(
         val filter = builder.build()
 
         val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-            .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
-            .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
+            .setReportDelay(SCAN_REPORT_DELAY)
             .build()
 
         bleScanner?.startScan(listOf(filter), settings, scanCallback)
