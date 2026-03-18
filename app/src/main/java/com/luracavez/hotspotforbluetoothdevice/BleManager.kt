@@ -135,6 +135,21 @@ class BleManager(
             return
         }
 
+        if (bluetoothAdapter?.isEnabled != true)
+        {
+            Log.d(LOG_TAG, "Bluetooth Adapter is not ready, retry....")
+            Handler(Looper.getMainLooper()).postDelayed({
+                startScanning()
+            }, 10 * 1000)
+            return
+        }
+
+        // to refresh the scan every 6 hours
+        Handler(Looper.getMainLooper()).postDelayed({
+            stopScanning()
+            startScanning()
+        }, 6 * 60 * 60 * 1000)
+
         Log.d(LOG_TAG, "Start scanning....")
 
         val builder = ScanFilter.Builder()
