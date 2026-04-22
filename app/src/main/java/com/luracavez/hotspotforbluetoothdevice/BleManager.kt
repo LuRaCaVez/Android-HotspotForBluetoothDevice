@@ -16,6 +16,8 @@ import androidx.annotation.RequiresPermission
 import kotlin.math.pow
 
 private const val LOG_TAG = "BleManager"
+private const val SCAN_RETRY_DELAY = 10000L
+private const val SCAN_RESTART_PERIOD = 3 * 60 * 60 * 1000L //3 hours
 private const val CHECK_DISTANCE_PERIOD = 6000L
 private const val LOST_TIMEOUT = 60000L
 private const val SCAN_REPORT_DELAY = 5000L
@@ -28,9 +30,13 @@ class BleManager(
     private val updateNotification: (String) -> Unit
 ) {
 
-    private val deviceHandler =  Handler(Looper.getMainLooper())
+    private val deviceHandler = Handler(Looper.getMainLooper())
 
-    private val lostDeviceHandler =  Handler(Looper.getMainLooper())
+    private val lostDeviceHandler = Handler(Looper.getMainLooper())
+
+    private val scanRestartHandler = Handler(Looper.getMainLooper())
+
+    private val scanRetryHandler = Handler(Looper.getMainLooper())
 
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
         val manager = context.getSystemService(BluetoothManager::class.java)
@@ -46,15 +52,14 @@ class BleManager(
     private val deviceRunnable = object : Runnable {
         override fun run() {
             if (rssiWindow.isNotEmpty()) {
-                val averageRssi = rssiWindow.average().toInt()
-                val distance = calculateDistance(averageRssi)
-                val distanceInfo = "Distance: %.2fm".format(distance)
-                val isNear = isNear(distance)
-                if (isNear == true && !isDeviceNear) {
+                val distance = calculateDistance(rssiWindow.average().toInt())
+                if (distance < 3 && !isDeviceNear) {
                     onDeviceNear()
-                } else if (isNear == false && isDeviceNear) {
+                } else if (distance > 6 && isDeviceNear) {
                     onDeviceFar()
                 }
+
+                val distanceInfo = "Distance: %.2fm".format(distance)
                 if (isDeviceNear) {
                     updateNotification("$CONNECTED_MESSAGE - $distanceInfo")
                 } else {
@@ -74,6 +79,14 @@ class BleManager(
         rssiWindow.removeAll { true }
     }
 
+    private val restartScanRunnable = object : Runnable {
+        @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
+        override fun run() {
+            stopScanning()
+            startScanning()
+        }
+    }
+
     fun saveRssi(newRssi: Int) {
         rssiWindow.add(newRssi)
         if (rssiWindow.size > RSSI_WINDOW_SIZE) rssiWindow.removeAt(0)
@@ -82,15 +95,6 @@ class BleManager(
     fun calculateDistance(rssi: Int, measuredPower: Int = -59): Double {
         val pathLossExponent = 3.0
         return 10.0.pow((measuredPower - rssi) / (10 * pathLossExponent))
-    }
-
-    fun isNear(distance: Double): Boolean? {
-        if (distance < 3) {
-            return true
-        } else if (distance > 6) {
-            return false
-        }
-        return null
     }
 
     fun onDeviceFar() {
@@ -138,17 +142,11 @@ class BleManager(
         if (bluetoothAdapter?.isEnabled != true)
         {
             Log.d(LOG_TAG, "Bluetooth Adapter is not ready, retry....")
-            Handler(Looper.getMainLooper()).postDelayed({
-                startScanning()
-            }, 10 * 1000)
+            scanRetryHandler.postDelayed(restartScanRunnable, SCAN_RETRY_DELAY)
             return
         }
 
-        // to refresh the scan every 6 hours
-        Handler(Looper.getMainLooper()).postDelayed({
-            stopScanning()
-            startScanning()
-        }, 6 * 60 * 60 * 1000)
+        scanRestartHandler.postDelayed(restartScanRunnable, SCAN_RESTART_PERIOD)
 
         Log.d(LOG_TAG, "Start scanning....")
 
@@ -175,8 +173,10 @@ class BleManager(
     fun stopScanning() {
         Log.d(LOG_TAG, "Stop scanning.")
 
-        bleScanner?.stopScan(scanCallback)
+        scanRetryHandler.removeCallbacks(restartScanRunnable)
+        scanRestartHandler.removeCallbacks(restartScanRunnable)
         deviceHandler.removeCallbacks(deviceRunnable)
         lostDeviceHandler.removeCallbacks(lostDeviceRunnable)
+        bleScanner?.stopScan(scanCallback)
     }
 }
