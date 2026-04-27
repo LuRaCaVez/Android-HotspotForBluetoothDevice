@@ -162,6 +162,8 @@ class BleManager(
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+            .setNumOfMatches(ScanSettings.MATCH_NUM_FEW_ADVERTISEMENT)
+            .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
             .setReportDelay(SCAN_REPORT_DELAY)
             .build()
 
