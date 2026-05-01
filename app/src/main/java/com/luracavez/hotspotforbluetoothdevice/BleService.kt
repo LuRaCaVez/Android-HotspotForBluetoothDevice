@@ -8,15 +8,17 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.os.Handler
-import android.os.Looper
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 
 class BleService : Service() {
-    private lateinit var bleManager: BleManager
+    private var bleManager: BleManager? = null
 
-    private var isRunning = false
+    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
 
     private val notificationManager: NotificationManager? by lazy {
         getSystemService(NotificationManager::class.java)
@@ -80,18 +82,18 @@ class BleService : Service() {
             return START_NOT_STICKY
         }
 
-        if (isRunning) {
-            bleManager.stopScanning()
-            updateNotification(DISCONNECTED_MESSAGE)
+        if (bleManager == null) {
+            bleManager = BleManager(
+                applicationContext,
+                getTargetUUID(),
+                getTargetMAC(),
+                serviceScope
+            ) { status -> updateNotification(status) }
+        } else {
+            bleManager?.stopScanning()
         }
 
-        isRunning = true
-        bleManager = BleManager(this, getTargetUUID(), getTargetMAC()) { status ->
-            updateNotification(status)
-        }
-        Handler(Looper.getMainLooper()).postDelayed({
-            bleManager.startScanning()
-        }, 250)
+        bleManager?.startScanning()
 
         return START_STICKY
     }
@@ -102,7 +104,8 @@ class BleService : Service() {
     override fun onDestroy() {
         super.onDestroy()
 
-        isRunning = false
-        bleManager.stopScanning()
+        bleManager?.stopScanning()
+        serviceScope.cancel()
+        bleManager = null
     }
 }

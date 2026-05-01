@@ -38,7 +38,7 @@ class LogViewerActivity : AppCompatActivity() {
 
                 while (isReading) {
                     val line = reader.readLine()
-                    if (line != null && line.contains(Regex("HotspotManager|BleManager|BootReceiver"))) {
+                    if (line != null && line.contains(Regex("HotspotManager|BleManager|BootReceiver|BleScanReceiver"))) {
                         withContext(Dispatchers.Main) {
                             logTextView.append(line + "\n")
                         }
