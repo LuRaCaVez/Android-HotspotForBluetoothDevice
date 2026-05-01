@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.pow
 
 private const val LOG_TAG = "BleManager"
+private const val SCAN_RETRY_DELAY = 10000L
 private const val CHECK_DISTANCE_PERIOD = 6000L
 private const val LOST_TIMEOUT = 60000L
 private const val RSSI_WINDOW_SIZE = 2
@@ -43,6 +44,8 @@ class BleManager(
     private val deviceHandler = Handler(Looper.getMainLooper())
 
     private val lostDeviceHandler = Handler(Looper.getMainLooper())
+
+    private val scanRetryHandler = Handler(Looper.getMainLooper())
 
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
         val manager = context.getSystemService(BluetoothManager::class.java)
@@ -83,6 +86,14 @@ class BleManager(
             updateNotification(DISCONNECTED_MESSAGE)
         }
         rssiWindow.removeAll { true }
+    }
+
+    private val restartScanRunnable = object : Runnable {
+        @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
+        override fun run() {
+            stopScanning()
+            startScanning()
+        }
     }
 
     private val callbackIntent: PendingIntent by lazy {
@@ -135,6 +146,13 @@ class BleManager(
             return
         }
 
+        if (bluetoothAdapter?.isEnabled != true)
+        {
+            Log.d(LOG_TAG, "Bluetooth Adapter is not ready, retry....")
+            scanRetryHandler.postDelayed(restartScanRunnable, SCAN_RETRY_DELAY)
+            return
+        }
+
         Log.d(LOG_TAG, "Start scanning....")
 
         val builder = ScanFilter.Builder()
@@ -161,6 +179,7 @@ class BleManager(
         Log.d(LOG_TAG, "Stop scanning.")
 
         updateNotification(DISCONNECTED_MESSAGE)
+        scanRetryHandler.removeCallbacks(restartScanRunnable)
         deviceHandler.removeCallbacks(deviceRunnable)
         lostDeviceHandler.removeCallbacks(lostDeviceRunnable)
         bleScanner?.stopScan(callbackIntent)
