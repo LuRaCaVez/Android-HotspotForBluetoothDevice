@@ -11,10 +11,9 @@ object HotspotManager {
     fun stopTetheringReflection(context: Context) {
         try {
             // 1. Get the TetheringManager service
-            val tetheringManager = context.getSystemService("tethering")
+            val tetheringManager = context.getSystemService("tethering") ?: return
 
             // 2. Find the stopTethering method
-            // In Android 11-13, the signature is usually stopTethering(int type)
             val stopMethod = tetheringManager.javaClass.getDeclaredMethod(
                 "stopTethering",
                 Int::class.javaPrimitiveType
@@ -34,13 +33,13 @@ object HotspotManager {
 
     fun startTetheringReflection(context: Context) {
         try {
-            // 1. Get the actual TetheringManager service (it's hidden but accessible by name)
-            val tetheringManager = context.getSystemService("tethering")
+            // 1. Get the actual TetheringManager service
+            val tetheringManager = context.getSystemService("tethering") ?: return
 
-            // 2. Get the new callback interface (In Android 11+, this IS an interface)
+            // 2. Get the new callback interface
             val callbackClass = Class.forName($$"android.net.TetheringManager$StartTetheringCallback")
 
-            // 3. Create the Proxy (This will work because in TetheringManager, it's an interface)
+            // 3. Create the Proxy
             val proxyCallback = java.lang.reflect.Proxy.newProxyInstance(
                 callbackClass.classLoader,
                 arrayOf(callbackClass)
@@ -49,7 +48,7 @@ object HotspotManager {
                 null
             }
 
-            // 4. Use the TetheringRequest Builder (Hidden)
+            // 4. Use the TetheringRequest Builder
             val requestClass = Class.forName($$"android.net.TetheringManager$TetheringRequest")
             val builderClass = Class.forName($$"android.net.TetheringManager$TetheringRequest$Builder")
             val builderInstance = builderClass.getConstructor(Int::class.javaPrimitiveType).newInstance(0) // 0 = WIFI
@@ -74,7 +73,7 @@ object HotspotManager {
     }
 
     fun toggleHotspot(context: Context, enabled: Boolean) {
-        val wifiManager = context.getSystemService(WifiManager::class.java)
+        val wifiManager = context.getSystemService(WifiManager::class.java) ?: return
 
         try {
             val methods = wifiManager.javaClass.declaredMethods
@@ -85,7 +84,7 @@ object HotspotManager {
                 val currentState = getWifiApState.invoke(wifiManager) as Int
                 // State: 11 = Off, 13 = On
                 isAlreadyEnabled = currentState == 13
-                Log.d(LOG_TAG, "WiFiAp state received")
+                Log.d(LOG_TAG, "WiFiAp state received: $currentState")
             } else {
                 Log.e(LOG_TAG, "Method getWifiApState not found")
             }

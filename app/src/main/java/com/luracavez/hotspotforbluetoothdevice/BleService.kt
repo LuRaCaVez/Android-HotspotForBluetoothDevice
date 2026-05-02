@@ -1,6 +1,5 @@
 package com.luracavez.hotspotforbluetoothdevice
 
-import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,130 +7,89 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.IBinder
 import android.util.Log
-import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 
-private const val LOG_TAG = "BleService"
+class BLEService : Service() {
 
-class BleService : Service() {
-    private var bleManager: BleManager? = null
-
-    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
-
-    private val notificationManager: NotificationManager? by lazy {
-        getSystemService(NotificationManager::class.java)
-    }
-
-    private fun getTargetUUID(): String {
-        val sharedPrefs = getSharedPreferences(SHARED_NAME, MODE_PRIVATE)
-        return sharedPrefs.getString(UUID_SHARED_KEY, "") ?: ""
-    }
-
-    private fun getTargetMAC(): String {
-        val sharedPrefs = getSharedPreferences(SHARED_NAME, MODE_PRIVATE)
-        return sharedPrefs.getString(MAC_SHARED_KEY, "") ?: ""
-    }
-
-    private fun createNotification(statusText: String) : Notification {
-        val stopIntent = Intent(applicationContext, BleService::class.java).apply {
-            action = ACTION_STOP_FOREGROUND_SERVICE
-        }
-
-        val stopPendingIntent = PendingIntent.getService(
-            applicationContext,
-            0,
-            stopIntent,
-            PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val mainIntent = Intent(applicationContext, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-
-        val mainPendingIntent = PendingIntent.getActivity(
-            applicationContext,
-            0,
-            mainIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-            .setContentTitle(NOTIFICATION_TITLE_BLE)
-            .setContentText(statusText)
-            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setOngoing(true)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .setContentIntent(mainPendingIntent)
-            .addAction(0, NOTIFICATION_STOP_BLE, stopPendingIntent)
-            .build()
-    }
-
-    private fun updateNotification(statusText: String) {
-        notificationManager?.notify(NOTIFICATION_ID, createNotification(statusText))
+    companion object {
+        private const val NOTIFICATION_ID = 101
+        private const val CHANNEL_ID = "ProximityServiceChannel"
+        
+        const val ACTION_STOP_SERVICE = "ACTION_STOP_SERVICE"
+        const val ACTION_TOGGLE_ON = "ACTION_TOGGLE_ON"
+        const val ACTION_TOGGLE_OFF = "ACTION_TOGGLE_OFF"
+        const val ACTION_DEVICE_IN_RANGE = "ACTION_DEVICE_IN_RANGE"
+        const val ACTION_DEVICE_OUT_OF_RANGE = "ACTION_DEVICE_OUT_OF_RANGE"
     }
 
     override fun onCreate() {
-        Log.d(LOG_TAG, "onCreate")
-
         super.onCreate()
-
-        val serviceChannel = NotificationChannel(
-            CHANNEL_ID,
-            NOTIFICATION_CHANNEL_NAME,
-            NotificationManager.IMPORTANCE_LOW
-        )
-        notificationManager?.createNotificationChannel(serviceChannel)
-
-        startForeground(NOTIFICATION_ID, createNotification(DISCONNECTED_MESSAGE),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        createNotificationChannel()
+        startForegroundServiceWithNotification()
     }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(LOG_TAG, "onStartCommand")
+    private fun startForegroundServiceWithNotification() {
+        val stopIntent = Intent(this, BLEService::class.java).apply { action = ACTION_STOP_SERVICE }
+        val stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
 
-        super.onStartCommand(intent, flags, startId)
+        val onIntent = Intent(this, BLEService::class.java).apply { action = ACTION_TOGGLE_ON }
+        val onPendingIntent = PendingIntent.getService(this, 1, onIntent, PendingIntent.FLAG_IMMUTABLE)
 
-        if (intent?.action == ACTION_STOP_FOREGROUND_SERVICE) {
-            Log.d(LOG_TAG, ACTION_STOP_FOREGROUND_SERVICE)
+        val offIntent = Intent(this, BLEService::class.java).apply { action = ACTION_TOGGLE_OFF }
+        val offPendingIntent = PendingIntent.getService(this, 2, offIntent, PendingIntent.FLAG_IMMUTABLE)
 
-            stopSelf()
-            return START_NOT_STICKY
-        }
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(getString(R.string.notification_content))
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.action_stop), stopPendingIntent)
+            .addAction(android.R.drawable.ic_menu_add, getString(R.string.action_on), onPendingIntent)
+            .addAction(android.R.drawable.ic_menu_delete, getString(R.string.action_off), offPendingIntent)
+            .build()
 
-        if (bleManager == null) {
-            Log.d(LOG_TAG, "bleManager is null")
-
-            bleManager = BleManager(
-                applicationContext,
-                getTargetUUID(),
-                getTargetMAC(),
-                serviceScope
-            ) { status -> updateNotification(status) }
+        // Android 14+ requires FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         } else {
-            bleManager?.stopScanning()
+            startForeground(NOTIFICATION_ID, notification)
         }
+    }
 
-        bleManager?.startScanning()
+    private fun createNotificationChannel() {
+        val serviceChannel = NotificationChannel(
+            CHANNEL_ID,
+            "Proximity Service Channel",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        val manager = getSystemService(NotificationManager::class.java)
+        manager?.createNotificationChannel(serviceChannel)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val action = intent?.action
+        Log.d("BLEService", "Service started with action: $action")
+
+        when (action) {
+            ACTION_DEVICE_IN_RANGE, ACTION_TOGGLE_ON -> {
+                Log.d("BLEService", "Enabling hotspot.")
+                HotspotManager.toggleHotspot(this, true)
+            }
+            ACTION_DEVICE_OUT_OF_RANGE, ACTION_TOGGLE_OFF -> {
+                Log.d("BLEService", "Disabling hotspot.")
+                HotspotManager.toggleHotspot(this, false)
+            }
+            ACTION_STOP_SERVICE -> {
+                Log.d("BLEService", "Stopping service.")
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }
 
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent?) = null
-
-    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
-    override fun onDestroy() {
-        Log.d(LOG_TAG, "onDestroy")
-
-        super.onDestroy()
-
-        bleManager?.stopScanning()
-        serviceScope.cancel()
-        bleManager = null
-    }
+    override fun onBind(intent: Intent?): IBinder? = null
 }

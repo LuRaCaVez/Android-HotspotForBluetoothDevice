@@ -2,39 +2,41 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="20dp"
-    android:gravity="center">
+    android:padding="24dp"
+    android:gravity="center"
+    android:background="?android:attr/windowBackground">
 
-    <EditText
-        android:id="@+id/editUUID"
+    <ImageView
+        android:layout_width="128dp"
+        android:layout_height="128dp"
+        android:layout_marginBottom="32dp"
+        android:src="@drawable/ic_launcher_foreground"
+        android:background="@drawable/ic_launcher_background"
+        android:elevation="4dp"
+        android:padding="16dp"
+        android:contentDescription="@string/app_name" />
+
+    <Button
+        android:id="@+id/btnPairDevice"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:autofillHints="name"
-        android:hint="@string/uuid_es"
-        android:inputType="textNoSuggestions"
-        android:textAllCaps="true" />
-
-    <EditText
-        android:id="@+id/editMAC"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:autofillHints="name"
-        android:hint="@string/mac_es"
-        android:inputType="textNoSuggestions"
-        android:textAllCaps="true" />
+        android:text="@string/pair_device"
+        android:textAllCaps="false"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:backgroundTint="@color/blue_500"
+        android:textColor="@color/white"
+        android:layout_marginBottom="12dp"/>
 
     <Button
         android:id="@+id/btnSaveAndStartBLE"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/start_service_ble"
-        android:layout_marginTop="10dp"/>
-
-    <Button
-        android:id="@+id/btnViewLogs"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/view_logs"
-        android:layout_marginTop="10dp"/>
+        android:textAllCaps="false"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:backgroundTint="@color/red_500"
+        android:textColor="@color/white" />
 
 </LinearLayout>
