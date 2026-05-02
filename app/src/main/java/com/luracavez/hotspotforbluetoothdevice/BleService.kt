@@ -83,7 +83,7 @@ class BleService : Service() {
         val serviceChannel = NotificationChannel(
             CHANNEL_ID,
             NOTIFICATION_CHANNEL_NAME,
-            NotificationManager.IMPORTANCE_DEFAULT
+            NotificationManager.IMPORTANCE_LOW
         )
         notificationManager?.createNotificationChannel(serviceChannel)
 
