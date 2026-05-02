@@ -4,8 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 
 private const val LOG_TAG = "BootReceiver"
 
@@ -19,8 +17,8 @@ class BootReceiver : BroadcastReceiver() {
 
             Log.d(LOG_TAG, "Action boot received: $action")
 
-            val workRequest = OneTimeWorkRequestBuilder<BleWorkWorker>().build()
-            WorkManager.getInstance(context).enqueue(workRequest)
+            val serviceIntent = Intent(context, BleService::class.java)
+            context.startForegroundService(serviceIntent)
         }
     }
 }

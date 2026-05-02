@@ -77,6 +77,8 @@ class MainActivity : AppCompatActivity() {
         permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         permissions.add(Manifest.permission.FOREGROUND_SERVICE)
         permissions.add(Manifest.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE)
+        permissions.add(Manifest.permission.ACCESS_WIFI_STATE)
+        permissions.add(Manifest.permission.SYSTEM_ALERT_WINDOW)
         ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 100)
 
         if (!Settings.System.canWrite(this)) {

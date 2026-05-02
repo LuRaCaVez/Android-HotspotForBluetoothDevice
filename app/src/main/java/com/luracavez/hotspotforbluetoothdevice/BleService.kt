@@ -38,29 +38,29 @@ class BleService : Service() {
     }
 
     private fun createNotification(statusText: String) : Notification {
-        val stopIntent = Intent(this, BleService::class.java).apply {
+        val stopIntent = Intent(applicationContext, BleService::class.java).apply {
             action = ACTION_STOP_FOREGROUND_SERVICE
         }
 
         val stopPendingIntent = PendingIntent.getService(
-            this,
+            applicationContext,
             0,
             stopIntent,
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val mainIntent = Intent(this, MainActivity::class.java).apply {
+        val mainIntent = Intent(applicationContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
 
         val mainPendingIntent = PendingIntent.getActivity(
-            this,
+            applicationContext,
             0,
             mainIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        return NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setContentTitle(NOTIFICATION_TITLE_BLE)
             .setContentText(statusText)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
@@ -83,7 +83,7 @@ class BleService : Service() {
         val serviceChannel = NotificationChannel(
             CHANNEL_ID,
             NOTIFICATION_CHANNEL_NAME,
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_DEFAULT
         )
         notificationManager?.createNotificationChannel(serviceChannel)
 
