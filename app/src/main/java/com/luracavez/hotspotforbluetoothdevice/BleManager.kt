@@ -20,7 +20,6 @@ import kotlinx.coroutines.launch
 import kotlin.math.pow
 
 private const val LOG_TAG = "BleManager"
-private const val SCAN_RETRY_DELAY = 10000L
 private const val CHECK_DISTANCE_PERIOD = 6000L
 private const val LOST_TIMEOUT = 60000L
 private const val RSSI_WINDOW_SIZE = 2
@@ -45,8 +44,6 @@ class BleManager(
 
     private val lostDeviceHandler = Handler(Looper.getMainLooper())
 
-    private val scanRetryHandler = Handler(Looper.getMainLooper())
-
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
         val manager = context.getSystemService(BluetoothManager::class.java)
         manager.adapter
@@ -63,9 +60,13 @@ class BleManager(
             if (rssiWindow.isNotEmpty()) {
                 val distance = calculateDistance(rssiWindow.average().toInt())
                 if (distance < 3 && !isDeviceNear) {
-                    onDeviceNear()
+                    isDeviceNear = true
+                    Log.d(LOG_TAG, "Device connected")
+                    HotspotManager.toggleHotspot(context, true)
                 } else if (distance > 6 && isDeviceNear) {
-                    onDeviceFar()
+                    isDeviceNear = false
+                    Log.d(LOG_TAG, "Device disconnected")
+                    HotspotManager.toggleHotspot(context, false)
                 }
 
                 val distanceInfo = "Distance: %.2fm".format(distance)
@@ -80,20 +81,15 @@ class BleManager(
     }
 
     private val lostDeviceRunnable = Runnable {
-        if (isDeviceNear) {
-            onDeviceFar()
-        } else {
-            updateNotification(DISCONNECTED_MESSAGE)
-        }
-        rssiWindow.removeAll { true }
-    }
+        Log.d(LOG_TAG, "Device lost")
 
-    private val restartScanRunnable = object : Runnable {
-        @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
-        override fun run() {
-            stopScanning()
-            startScanning()
+        if (isDeviceNear) {
+            isDeviceNear = false
+            HotspotManager.toggleHotspot(context, false)
         }
+
+        updateNotification(DISCONNECTED_MESSAGE)
+        rssiWindow.removeAll { true }
     }
 
     private val callbackIntent: PendingIntent by lazy {
@@ -125,31 +121,10 @@ class BleManager(
         return 10.0.pow((measuredPower - rssi) / (10 * pathLossExponent))
     }
 
-    fun onDeviceFar() {
-        Log.d(LOG_TAG, "Device disconnected")
-        isDeviceNear = false
-        updateNotification(DISCONNECTED_MESSAGE)
-        HotspotManager.toggleHotspot(context, false)
-    }
-
-    fun onDeviceNear() {
-        Log.d(LOG_TAG, "Device connected")
-        isDeviceNear = true
-        updateNotification(CONNECTED_MESSAGE)
-        HotspotManager.toggleHotspot(context, true)
-    }
-
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     fun startScanning() {
         if (targetUUID.isEmpty() && targetMAC.isEmpty()) {
             Log.d(LOG_TAG, "Skip scanning because target is not set.")
-            return
-        }
-
-        if (bluetoothAdapter?.isEnabled != true)
-        {
-            Log.d(LOG_TAG, "Bluetooth Adapter is not ready, retry....")
-            scanRetryHandler.postDelayed(restartScanRunnable, SCAN_RETRY_DELAY)
             return
         }
 
@@ -178,8 +153,6 @@ class BleManager(
     fun stopScanning() {
         Log.d(LOG_TAG, "Stop scanning.")
 
-        updateNotification(DISCONNECTED_MESSAGE)
-        scanRetryHandler.removeCallbacks(restartScanRunnable)
         deviceHandler.removeCallbacks(deviceRunnable)
         lostDeviceHandler.removeCallbacks(lostDeviceRunnable)
         bleScanner?.stopScan(callbackIntent)
