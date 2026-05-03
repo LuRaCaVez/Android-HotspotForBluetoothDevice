@@ -1,42 +1,63 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp"
-    android:gravity="center"
+    android:padding="16dp"
     android:background="?android:attr/windowBackground">
 
-    <ImageView
-        android:layout_width="128dp"
-        android:layout_height="128dp"
-        android:layout_marginBottom="32dp"
-        android:src="@drawable/ic_launcher_foreground"
-        android:background="@drawable/ic_launcher_background"
-        android:elevation="4dp"
-        android:padding="16dp"
-        android:contentDescription="@string/app_name" />
-
-    <Button
-        android:id="@+id/btnPairDevice"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/pair_device"
-        android:textAllCaps="false"
-        android:insetTop="0dp"
-        android:insetBottom="0dp"
-        android:backgroundTint="@color/blue_500"
-        android:textColor="@color/white"
-        android:layout_marginBottom="12dp"/>
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingBottom="16dp">
 
-    <Button
-        android:id="@+id/btnSaveAndStartBLE"
+        <ImageView
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_marginBottom="16dp"
+            android:src="@drawable/ic_launcher_foreground"
+            android:background="@drawable/ic_launcher_background"
+            android:elevation="4dp"
+            android:padding="12dp"
+            android:contentDescription="@string/app_name" />
+
+        <Button
+            android:id="@+id/btnPairDevice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/pair_device"
+            android:textAllCaps="false"
+            android:backgroundTint="@color/blue_500"
+            android:textColor="@color/white"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnSaveAndStartBLE"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/start_service_ble"
+            android:textAllCaps="false"
+            android:backgroundTint="@color/red_500"
+            android:textColor="@color/white" />
+    </LinearLayout>
+
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/start_service_ble"
-        android:textAllCaps="false"
-        android:insetTop="0dp"
-        android:insetBottom="0dp"
-        android:backgroundTint="@color/red_500"
-        android:textColor="@color/white" />
+        android:text="Associated Devices"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvDevices"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        tools:listitem="@layout/device_item" />
 
 </LinearLayout>

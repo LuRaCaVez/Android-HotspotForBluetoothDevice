@@ -5,6 +5,7 @@ import android.app.Activity
 import android.companion.AssociationInfo
 import android.companion.AssociationRequest
 import android.companion.BluetoothDeviceFilter
+import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
 import android.companion.ObservingDevicePresenceRequest
 import android.content.ComponentName
@@ -13,13 +14,24 @@ import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import android.util.Log
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ImageButton
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 
 class MainActivity : AppCompatActivity() {
 
@@ -27,23 +39,25 @@ class MainActivity : AppCompatActivity() {
         getSystemService(CompanionDeviceManager::class.java)
     }
 
+    private lateinit var deviceAdapter: DeviceAdapter
+
     private val pairingLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             Log.d("MainActivity", "Association successful")
             Toast.makeText(this, "Device paired successfully!", Toast.LENGTH_SHORT).show()
+            loadAssociations()
         }
     }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val allGranted = permissions.entries.all { it.value }
-        if (allGranted) {
-            Log.d("MainActivity", "All permissions granted")
+    ) { _ ->
+        if (getMissingPermissions().isEmpty()) {
+            Toast.makeText(this, "Permissions granted! Click again to proceed.", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(this, "Permissions are required for background monitoring", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Permissions are required for the app to function.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -51,60 +65,90 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main_activity)
 
-        // Initial permission check
-        checkAndRequestPermissions()
+        setupRecyclerView()
 
         findViewById<Button>(R.id.btnPairDevice).setOnClickListener {
-            if (hasPermissions()) {
-                startAssociationProcess()
-            } else {
-                checkAndRequestPermissions()
-            }
+            handleAction { startAssociationProcess() }
         }
         
         findViewById<Button>(R.id.btnSaveAndStartBLE).setOnClickListener {
-            if (hasPermissions()) {
+            handleAction {
                 val intent = Intent(this, BLEService::class.java)
                 startForegroundService(intent)
-            } else {
-                checkAndRequestPermissions()
+                Handler(Looper.getMainLooper()).postDelayed({
+                    finish()
+                }, 750)
             }
         }
     }
 
-    private fun hasPermissions(): Boolean {
-        val permissions = mutableListOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.POST_NOTIFICATIONS
-        )
-        return permissions.all {
-            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+    override fun onResume() {
+        super.onResume()
+        loadAssociations()
+    }
+
+    private fun setupRecyclerView() {
+        val rv = findViewById<RecyclerView>(R.id.rvDevices)
+        deviceAdapter = DeviceAdapter(emptyList()) { association ->
+            disassociateDevice(association)
+        }
+        rv.layoutManager = LinearLayoutManager(this)
+        rv.adapter = deviceAdapter
+    }
+
+    private fun loadAssociations() {
+        val manager = deviceManager ?: return
+        val associations = manager.myAssociations
+        deviceAdapter.update(associations)
+    }
+
+    private fun disassociateDevice(association: AssociationInfo) {
+        val manager = deviceManager ?: return
+        try {
+            manager.disassociate(association.id)
+            Toast.makeText(this, "Device removed", Toast.LENGTH_SHORT).show()
+            loadAssociations()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error disassociating", e)
         }
     }
 
-    private fun checkAndRequestPermissions() {
-        val permissions = arrayOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.POST_NOTIFICATIONS
-        )
-
-        val missingPermissions = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+    private fun handleAction(onReady: () -> Unit) {
+        val missing = getMissingPermissions()
+        if (missing.isNotEmpty()) {
+            permissionLauncher.launch(missing.toTypedArray())
+            return
         }
 
-        if (missingPermissions.isNotEmpty()) {
-            permissionLauncher.launch(missingPermissions.toTypedArray())
+         if (!Settings.System.canWrite(this)) {
+            Toast.makeText(this, "Please allow 'Modify system settings' for Hotspot control", Toast.LENGTH_LONG).show()
+            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+            intent.data = "package:$packageName".toUri()
+            startActivity(intent)
+            return
+        }
+
+        onReady()
+    }
+
+    private fun getMissingPermissions(): List<String> {
+        val required = mutableListOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.POST_NOTIFICATIONS,
+            Manifest.permission.BIND_COMPANION_DEVICE_SERVICE
+        )
+        return required.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
     }
 
     private fun startAssociationProcess() {
         val manager = deviceManager ?: return
-        val deviceFilter = BluetoothDeviceFilter.Builder().build()
 
         val request = AssociationRequest.Builder()
-            .addDeviceFilter(deviceFilter)
+            .addDeviceFilter(BluetoothDeviceFilter.Builder().build())
+            .addDeviceFilter(BluetoothLeDeviceFilter.Builder().build())
             .build()
 
         manager.associate(
@@ -116,7 +160,6 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun onAssociationCreated(associationInfo: AssociationInfo) {
-                    // Enable Boot receiver on pairing success
                     val receiver = ComponentName(this@MainActivity, BootReceiver::class.java)
                     packageManager.setComponentEnabledSetting(
                         receiver,
@@ -126,21 +169,18 @@ class MainActivity : AppCompatActivity() {
 
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                            // Use modern API for Android 14+
                             val observeRequest = ObservingDevicePresenceRequest.Builder()
                                 .setAssociationId(associationInfo.id)
                                 .build()
                             manager.startObservingDevicePresence(observeRequest)
-                            Log.d("MainActivity", "Presence observation started (Request API)")
                         } else {
-                            // Fallback for Android 13
                             val address = associationInfo.deviceMacAddress
                             if (address != null) {
                                 @Suppress("DEPRECATION")
                                 manager.startObservingDevicePresence(address.toString())
-                                Log.d("MainActivity", "Presence observation started (String API)")
                             }
                         }
+                        loadAssociations()
                     } catch (e: Exception) {
                         Log.e("MainActivity", "Error starting presence observation", e)
                     }
@@ -152,5 +192,36 @@ class MainActivity : AppCompatActivity() {
             },
             null
         )
+    }
+
+    private inner class DeviceAdapter(
+        private var devices: List<AssociationInfo>,
+        private val onDelete: (AssociationInfo) -> Unit
+    ) : RecyclerView.Adapter<DeviceAdapter.ViewHolder>() {
+
+        inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+            val name: TextView = view.findViewById(R.id.deviceName)
+            val address: TextView = view.findViewById(R.id.deviceAddress)
+            val deleteBtn: ImageButton = view.findViewById(R.id.btnDelete)
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            val view = LayoutInflater.from(parent.context).inflate(R.layout.device_item, parent, false)
+            return ViewHolder(view)
+        }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            val device = devices[position]
+            holder.name.text = device.displayName ?: "Unknown Device"
+            holder.address.text = device.deviceMacAddress?.toString() ?: "No Address"
+            holder.deleteBtn.setOnClickListener { onDelete(device) }
+        }
+
+        override fun getItemCount() = devices.size
+
+        fun update(newDevices: List<AssociationInfo>) {
+            devices = newDevices
+            notifyDataSetChanged()
+        }
     }
 }
