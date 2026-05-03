@@ -8,14 +8,11 @@ import android.companion.BluetoothDeviceFilter
 import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
 import android.companion.ObservingDevicePresenceRequest
-import android.content.ComponentName
 import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
@@ -45,8 +42,16 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            Log.d("MainActivity", "Association successful")
-            Toast.makeText(this, "Device paired successfully!", Toast.LENGTH_SHORT).show()
+            val association: AssociationInfo? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                result.data?.getParcelableExtra(CompanionDeviceManager.EXTRA_ASSOCIATION, AssociationInfo::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                result.data?.getParcelableExtra(CompanionDeviceManager.EXTRA_ASSOCIATION)
+            }
+            
+            val deviceName = association?.displayName ?: "Device"
+            Log.d("MainActivity", "Association successful: $deviceName")
+            Toast.makeText(this, "$deviceName paired successfully!", Toast.LENGTH_SHORT).show()
             loadAssociations()
         }
     }
@@ -55,7 +60,7 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         if (getMissingPermissions().isEmpty()) {
-            Toast.makeText(this, "Permissions granted! Click again to proceed.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Permissions granted!", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(this, "Permissions are required for the app to function.", Toast.LENGTH_LONG).show()
         }
@@ -69,16 +74,6 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnPairDevice).setOnClickListener {
             handleAction { startAssociationProcess() }
-        }
-        
-        findViewById<Button>(R.id.btnSaveAndStartBLE).setOnClickListener {
-            handleAction {
-                val intent = Intent(this, BLEService::class.java)
-                startForegroundService(intent)
-                Handler(Looper.getMainLooper()).postDelayed({
-                    finish()
-                }, 750)
-            }
         }
     }
 
@@ -98,8 +93,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadAssociations() {
         val manager = deviceManager ?: return
-        val associations = manager.myAssociations
-        deviceAdapter.update(associations)
+        deviceAdapter.update(manager.myAssociations)
     }
 
     private fun disassociateDevice(association: AssociationInfo) {
@@ -121,7 +115,7 @@ class MainActivity : AppCompatActivity() {
         }
 
          if (!Settings.System.canWrite(this)) {
-            Toast.makeText(this, "Please allow 'Modify system settings' for Hotspot control", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Please allow 'Modify system settings'", Toast.LENGTH_LONG).show()
             val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
             intent.data = "package:$packageName".toUri()
             startActivity(intent)
@@ -135,8 +129,7 @@ class MainActivity : AppCompatActivity() {
         val required = mutableListOf(
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.POST_NOTIFICATIONS,
-            Manifest.permission.BIND_COMPANION_DEVICE_SERVICE
+            Manifest.permission.POST_NOTIFICATIONS
         )
         return required.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
@@ -145,7 +138,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startAssociationProcess() {
         val manager = deviceManager ?: return
-
+        
         val request = AssociationRequest.Builder()
             .addDeviceFilter(BluetoothDeviceFilter.Builder().build())
             .addDeviceFilter(BluetoothLeDeviceFilter.Builder().build())
@@ -160,30 +153,20 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun onAssociationCreated(associationInfo: AssociationInfo) {
-                    val receiver = ComponentName(this@MainActivity, BootReceiver::class.java)
-                    packageManager.setComponentEnabledSetting(
-                        receiver,
-                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                        PackageManager.DONT_KILL_APP
-                    )
-
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                            val observeRequest = ObservingDevicePresenceRequest.Builder()
-                                .setAssociationId(associationInfo.id)
-                                .build()
-                            manager.startObservingDevicePresence(observeRequest)
-                        } else {
-                            val address = associationInfo.deviceMacAddress
-                            if (address != null) {
-                                @Suppress("DEPRECATION")
-                                manager.startObservingDevicePresence(address.toString())
-                            }
+                    val address = associationInfo.deviceMacAddress?.toString()
+                    
+                    // Deduplication: Remove existing association for the same MAC
+                    if (address != null) {
+                        manager.myAssociations.filter { 
+                            it.deviceMacAddress?.toString() == address && it.id != associationInfo.id 
+                        }.forEach { old ->
+                            Log.d("MainActivity", "Removing duplicate association: ${old.id}")
+                            manager.disassociate(old.id)
                         }
-                        loadAssociations()
-                    } catch (e: Exception) {
-                        Log.e("MainActivity", "Error starting presence observation", e)
                     }
+
+                    startObservationFor(associationInfo)
+                    loadAssociations()
                 }
 
                 override fun onFailure(error: CharSequence?) {
@@ -192,6 +175,27 @@ class MainActivity : AppCompatActivity() {
             },
             null
         )
+    }
+
+    private fun startObservationFor(associationInfo: AssociationInfo) {
+        val manager = deviceManager ?: return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                val observeRequest = ObservingDevicePresenceRequest.Builder()
+                    .setAssociationId(associationInfo.id)
+                    .build()
+                manager.startObservingDevicePresence(observeRequest)
+            } else {
+                val mac = associationInfo.deviceMacAddress
+                if (mac != null) {
+                    @Suppress("DEPRECATION")
+                    manager.startObservingDevicePresence(mac.toString())
+                }
+            }
+            Log.d("MainActivity", "Observation started for ${associationInfo.displayName}")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start observation", e)
+        }
     }
 
     private inner class DeviceAdapter(
