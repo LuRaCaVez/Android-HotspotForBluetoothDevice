@@ -34,6 +34,15 @@
             android:textColor="@color/white"
             android:layout_marginBottom="8dp"/>
 
+        <Button
+            android:id="@+id/btnSaveAndStartBLE"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/start_service_ble"
+            android:textAllCaps="false"
+            android:backgroundTint="@color/red_500"
+            android:textColor="@color/white" />
+
     </LinearLayout>
 
     <TextView

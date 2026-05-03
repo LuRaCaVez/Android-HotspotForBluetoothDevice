@@ -14,24 +14,31 @@ class BootReceiver : BroadcastReceiver() {
             Log.d("BootReceiver", "Boot completed, restoring associations...")
             val manager = context.getSystemService(CompanionDeviceManager::class.java) ?: return
             
-            // Restore presence observation for all existing associations
-            for (association in manager.myAssociations) {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                        val observeRequest = ObservingDevicePresenceRequest.Builder()
-                            .setAssociationId(association.id)
-                            .build()
-                        manager.startObservingDevicePresence(observeRequest)
-                    } else {
-                        val address = association.deviceMacAddress
-                        if (address != null) {
-                            @Suppress("DEPRECATION")
-                            manager.startObservingDevicePresence(address.toString())
+            val associations = manager.myAssociations
+            if (associations.isNotEmpty()) {
+                // Start the foreground service to show we are monitoring
+                val serviceIntent = Intent(context, MonitoringService::class.java)
+                context.startForegroundService(serviceIntent)
+
+                // Restore presence observation for all existing associations
+                for (association in associations) {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                            val observeRequest = ObservingDevicePresenceRequest.Builder()
+                                .setAssociationId(association.id)
+                                .build()
+                            manager.startObservingDevicePresence(observeRequest)
+                        } else {
+                            val address = association.deviceMacAddress
+                            if (address != null) {
+                                @Suppress("DEPRECATION")
+                                manager.startObservingDevicePresence(address.toString())
+                            }
                         }
+                        Log.d("BootReceiver", "Started observing: ${association.displayName}")
+                    } catch (e: Exception) {
+                        Log.e("BootReceiver", "Failed to observe ${association.displayName}", e)
                     }
-                    Log.d("BootReceiver", "Started observing: ${association.displayName}")
-                } catch (e: Exception) {
-                    Log.e("BootReceiver", "Failed to observe ${association.displayName}", e)
                 }
             }
         }

@@ -75,6 +75,13 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnPairDevice).setOnClickListener {
             handleAction { startAssociationProcess() }
         }
+        
+        findViewById<Button>(R.id.btnSaveAndStartBLE).setOnClickListener {
+            handleAction {
+                startMonitoringService()
+                Toast.makeText(this, "Monitoring started", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onResume() {
@@ -115,7 +122,7 @@ class MainActivity : AppCompatActivity() {
         }
 
          if (!Settings.System.canWrite(this)) {
-            Toast.makeText(this, "Please allow 'Modify system settings'", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Please allow 'Modify system settings' for Hotspot control", Toast.LENGTH_LONG).show()
             val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
             intent.data = "package:$packageName".toUri()
             startActivity(intent)
@@ -155,7 +162,6 @@ class MainActivity : AppCompatActivity() {
                 override fun onAssociationCreated(associationInfo: AssociationInfo) {
                     val address = associationInfo.deviceMacAddress?.toString()
                     
-                    // Deduplication: Remove existing association for the same MAC
                     if (address != null) {
                         manager.myAssociations.filter { 
                             it.deviceMacAddress?.toString() == address && it.id != associationInfo.id 
@@ -165,7 +171,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
 
-                    startObservationFor(associationInfo)
+                    startMonitoringService()
                     loadAssociations()
                 }
 
@@ -177,24 +183,36 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun startObservationFor(associationInfo: AssociationInfo) {
+    private fun startMonitoringService() {
         val manager = deviceManager ?: return
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                val observeRequest = ObservingDevicePresenceRequest.Builder()
-                    .setAssociationId(associationInfo.id)
-                    .build()
-                manager.startObservingDevicePresence(observeRequest)
-            } else {
-                val mac = associationInfo.deviceMacAddress
-                if (mac != null) {
-                    @Suppress("DEPRECATION")
-                    manager.startObservingDevicePresence(mac.toString())
+        val associations = manager.myAssociations
+        if (associations.isNotEmpty()) {
+            val intent = Intent(this, MonitoringService::class.java)
+            startForegroundService(intent)
+
+            for (association in associations) {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                        val observeRequest = ObservingDevicePresenceRequest.Builder()
+                            .setAssociationId(association.id)
+                            .build()
+                        manager.startObservingDevicePresence(observeRequest)
+                    } else {
+                        val address = association.deviceMacAddress
+                        if (address != null) {
+                            @Suppress("DEPRECATION")
+                            manager.startObservingDevicePresence(address.toString())
+                        }
+                    }
+                    Log.d("BootReceiver", "Started observing: ${association.displayName}")
+                } catch (e: Exception) {
+                    Log.e("BootReceiver", "Failed to observe ${association.displayName}", e)
                 }
             }
-            Log.d("MainActivity", "Observation started for ${associationInfo.displayName}")
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Failed to start observation", e)
+        }
+        else
+        {
+            Toast.makeText(this, "No devices found", Toast.LENGTH_SHORT).show()
         }
     }
 
