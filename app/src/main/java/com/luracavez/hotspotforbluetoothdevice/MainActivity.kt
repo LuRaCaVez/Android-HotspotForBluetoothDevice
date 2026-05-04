@@ -187,9 +187,6 @@ class MainActivity : AppCompatActivity() {
         val manager = deviceManager ?: return
         val associations = manager.myAssociations
         if (associations.isNotEmpty()) {
-            val intent = Intent(this, MonitoringService::class.java)
-            startForegroundService(intent)
-
             for (association in associations) {
                 try {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
@@ -209,6 +206,9 @@ class MainActivity : AppCompatActivity() {
                     Log.e("BootReceiver", "Failed to observe ${association.displayName}", e)
                 }
             }
+
+            val intent = Intent(this, MonitoringService::class.java)
+            startForegroundService(intent)
         }
         else
         {

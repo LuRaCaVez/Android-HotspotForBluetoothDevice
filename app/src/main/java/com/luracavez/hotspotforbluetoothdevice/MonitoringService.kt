@@ -85,9 +85,8 @@ class MonitoringService : Service() {
             }
         }
         
-        MyCompanionService.clearActiveDevices()
-        HotspotManager.toggleHotspot(this, false)
-        
+        CompanionService.clearActiveDevices()
+
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

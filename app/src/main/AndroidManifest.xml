@@ -28,7 +28,7 @@
         android:theme="@style/Theme.HotspotForBluetoothDevice">
 
         <service
-            android:name=".MyCompanionService"
+            android:name=".CompanionService"
             android:exported="true"
             android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE">
             <intent-filter>

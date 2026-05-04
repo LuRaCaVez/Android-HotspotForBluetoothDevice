@@ -8,11 +8,11 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import java.util.Collections
 
-class MyCompanionService : CompanionDeviceService() {
+class CompanionService : CompanionDeviceService() {
 
     companion object {
-        private const val TAG = "MyCompanionService"
-        // Track IDs of devices currently in range to handle "at least one" logic
+        private const val TAG = "CompanionService"
+
         private val activeDeviceIds = Collections.synchronizedSet(mutableSetOf<String>())
         
         fun clearActiveDevices() {
@@ -76,7 +76,6 @@ class MyCompanionService : CompanionDeviceService() {
     }
 
     private fun updateHotspotState() {
-        // Toggle Hotspot ON if at least one device is present, OFF if none.
         val shouldBeEnabled = activeDeviceIds.isNotEmpty()
         Log.d(TAG, "Active device count: ${activeDeviceIds.size}. Hotspot active: $shouldBeEnabled")
         HotspotManager.toggleHotspot(this, shouldBeEnabled)

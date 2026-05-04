@@ -16,11 +16,6 @@ class BootReceiver : BroadcastReceiver() {
             
             val associations = manager.myAssociations
             if (associations.isNotEmpty()) {
-                // Start the foreground service to show we are monitoring
-                val serviceIntent = Intent(context, MonitoringService::class.java)
-                context.startForegroundService(serviceIntent)
-
-                // Restore presence observation for all existing associations
                 for (association in associations) {
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
@@ -40,6 +35,9 @@ class BootReceiver : BroadcastReceiver() {
                         Log.e("BootReceiver", "Failed to observe ${association.displayName}", e)
                     }
                 }
+
+                val serviceIntent = Intent(context, MonitoringService::class.java)
+                context.startForegroundService(serviceIntent)
             }
         }
     }
