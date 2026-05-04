@@ -14,10 +14,11 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
+private const val LOG_TAG = "MonitoringService"
+
 class MonitoringService : Service() {
 
     companion object {
-        private const val TAG = "MonitoringService"
         private const val CHANNEL_ID = "monitoring_channel"
         private const val NOTIFICATION_ID = 1001
         const val ACTION_STOP_MONITORING = "com.luracavez.hotspotforbluetoothdevice.STOP_MONITORING"
@@ -30,10 +31,12 @@ class MonitoringService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP_MONITORING) {
+            CompanionService.active = false
             stopMonitoring()
             return START_NOT_STICKY
         }
 
+        CompanionService.active = true
         showForegroundNotification()
         return START_STICKY
     }
@@ -46,11 +49,19 @@ class MonitoringService : Service() {
             this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val mainIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val mainPendingIntent = PendingIntent.getActivity(
+            this, 0, mainIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(getString(R.string.notification_content))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
+            .setContentIntent(mainPendingIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.action_stop), stopPendingIntent)
             .build()
 
@@ -62,30 +73,7 @@ class MonitoringService : Service() {
     }
 
     private fun stopMonitoring() {
-        Log.d(TAG, "Stopping all device monitoring...")
-        val manager = getSystemService(CompanionDeviceManager::class.java)
-        if (manager != null) {
-            for (association in manager.myAssociations) {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                        val observeRequest = ObservingDevicePresenceRequest.Builder()
-                            .setAssociationId(association.id)
-                            .build()
-                        manager.stopObservingDevicePresence(observeRequest)
-                    } else {
-                        val address = association.deviceMacAddress
-                        if (address != null) {
-                            @Suppress("DEPRECATION")
-                            manager.stopObservingDevicePresence(address.toString())
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to stop observing ${association.displayName}", e)
-                }
-            }
-        }
-        
-        CompanionService.clearActiveDevices()
+        Log.d(LOG_TAG, "Stopping all device monitoring...")
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

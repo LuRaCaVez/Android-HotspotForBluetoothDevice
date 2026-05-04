@@ -8,16 +8,14 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import java.util.Collections
 
+private const val LOG_TAG = "CompanionService"
+
 class CompanionService : CompanionDeviceService() {
 
     companion object {
-        private const val TAG = "CompanionService"
-
         private val activeDeviceIds = Collections.synchronizedSet(mutableSetOf<String>())
-        
-        fun clearActiveDevices() {
-            activeDeviceIds.clear()
-        }
+
+        var active = false
     }
 
     /**
@@ -32,13 +30,13 @@ class CompanionService : CompanionDeviceService() {
             DevicePresenceEvent.EVENT_BLE_APPEARED, 
             DevicePresenceEvent.EVENT_BT_CONNECTED,
             DevicePresenceEvent.EVENT_SELF_MANAGED_APPEARED -> {
-                Log.d(TAG, "Device entered range: $id")
+                Log.d(LOG_TAG, "Device entered range: $id")
                 activeDeviceIds.add(id)
             }
             DevicePresenceEvent.EVENT_BLE_DISAPPEARED, 
             DevicePresenceEvent.EVENT_BT_DISCONNECTED,
             DevicePresenceEvent.EVENT_SELF_MANAGED_DISAPPEARED -> {
-                Log.d(TAG, "Device left range: $id")
+                Log.d(LOG_TAG, "Device left range: $id")
                 activeDeviceIds.remove(id)
             }
         }
@@ -54,7 +52,7 @@ class CompanionService : CompanionDeviceService() {
             @Suppress("DEPRECATION")
             super.onDeviceAppeared(associationInfo)
             val id = associationInfo.id.toString()
-            Log.d(TAG, "Device entered range (Legacy): $id")
+            Log.d(LOG_TAG, "Device entered range (Legacy): $id")
             activeDeviceIds.add(id)
             updateHotspotState()
         }
@@ -69,7 +67,7 @@ class CompanionService : CompanionDeviceService() {
             @Suppress("DEPRECATION")
             super.onDeviceDisappeared(associationInfo)
             val id = associationInfo.id.toString()
-            Log.d(TAG, "Device left range (Legacy): $id")
+            Log.d(LOG_TAG, "Device left range (Legacy): $id")
             activeDeviceIds.remove(id)
             updateHotspotState()
         }
@@ -77,7 +75,10 @@ class CompanionService : CompanionDeviceService() {
 
     private fun updateHotspotState() {
         val shouldBeEnabled = activeDeviceIds.isNotEmpty()
-        Log.d(TAG, "Active device count: ${activeDeviceIds.size}. Hotspot active: $shouldBeEnabled")
-        HotspotManager.toggleHotspot(this, shouldBeEnabled)
+        Log.d(LOG_TAG, "Active device count: ${activeDeviceIds.size}. Hotspot active: $shouldBeEnabled")
+        if (active)
+        {
+            HotspotManager.toggleHotspot(this, shouldBeEnabled)
+        }
     }
 }

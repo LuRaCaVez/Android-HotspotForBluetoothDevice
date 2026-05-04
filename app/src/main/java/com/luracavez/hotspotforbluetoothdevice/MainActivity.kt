@@ -1,7 +1,6 @@
 package com.luracavez.hotspotforbluetoothdevice
 
 import android.Manifest
-import android.app.Activity
 import android.companion.AssociationInfo
 import android.companion.AssociationRequest
 import android.companion.BluetoothDeviceFilter
@@ -13,6 +12,8 @@ import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
@@ -30,6 +31,8 @@ import androidx.core.net.toUri
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
+private const val LOG_TAG = "MainActivity"
+
 class MainActivity : AppCompatActivity() {
 
     private val deviceManager: CompanionDeviceManager? by lazy {
@@ -41,7 +44,7 @@ class MainActivity : AppCompatActivity() {
     private val pairingLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
+        if (result.resultCode == RESULT_OK) {
             val association: AssociationInfo? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
                 result.data?.getParcelableExtra(CompanionDeviceManager.EXTRA_ASSOCIATION, AssociationInfo::class.java)
             } else {
@@ -50,7 +53,7 @@ class MainActivity : AppCompatActivity() {
             }
             
             val deviceName = association?.displayName ?: "Device"
-            Log.d("MainActivity", "Association successful: $deviceName")
+            Log.d(LOG_TAG, "Association successful: $deviceName")
             Toast.makeText(this, "$deviceName paired successfully!", Toast.LENGTH_SHORT).show()
             loadAssociations()
         }
@@ -80,6 +83,9 @@ class MainActivity : AppCompatActivity() {
             handleAction {
                 startMonitoringService()
                 Toast.makeText(this, "Monitoring started", Toast.LENGTH_SHORT).show()
+                Handler(Looper.getMainLooper()).postDelayed({
+                    finish()
+                }, 750)
             }
         }
     }
@@ -121,7 +127,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-         if (!Settings.System.canWrite(this)) {
+        if (!Settings.System.canWrite(this)) {
             Toast.makeText(this, "Please allow 'Modify system settings' for Hotspot control", Toast.LENGTH_LONG).show()
             val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
             intent.data = "package:$packageName".toUri()
@@ -166,17 +172,33 @@ class MainActivity : AppCompatActivity() {
                         manager.myAssociations.filter { 
                             it.deviceMacAddress?.toString() == address && it.id != associationInfo.id 
                         }.forEach { old ->
-                            Log.d("MainActivity", "Removing duplicate association: ${old.id}")
+                            Log.d(LOG_TAG, "Removing duplicate association: ${old.id}")
                             manager.disassociate(old.id)
                         }
                     }
 
-                    startMonitoringService()
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                            val observeRequest = ObservingDevicePresenceRequest.Builder()
+                                .setAssociationId(associationInfo.id)
+                                .build()
+                            manager.startObservingDevicePresence(observeRequest)
+                        } else {
+                            if (address != null) {
+                                @Suppress("DEPRECATION")
+                                manager.startObservingDevicePresence(address)
+                            }
+                        }
+                        Log.d(LOG_TAG, "Started observing: $address ${associationInfo.id}")
+                    } catch (e: Exception) {
+                        Log.e(LOG_TAG, "Failed to observe ${associationInfo.id}", e)
+                    }
+
                     loadAssociations()
                 }
 
                 override fun onFailure(error: CharSequence?) {
-                    Log.e("MainActivity", "Association failed: $error")
+                    Log.e(LOG_TAG, "Association failed: $error")
                 }
             },
             null
@@ -184,36 +206,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startMonitoringService() {
-        val manager = deviceManager ?: return
-        val associations = manager.myAssociations
-        if (associations.isNotEmpty()) {
-            for (association in associations) {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                        val observeRequest = ObservingDevicePresenceRequest.Builder()
-                            .setAssociationId(association.id)
-                            .build()
-                        manager.startObservingDevicePresence(observeRequest)
-                    } else {
-                        val address = association.deviceMacAddress
-                        if (address != null) {
-                            @Suppress("DEPRECATION")
-                            manager.startObservingDevicePresence(address.toString())
-                        }
-                    }
-                    Log.d("BootReceiver", "Started observing: ${association.displayName}")
-                } catch (e: Exception) {
-                    Log.e("BootReceiver", "Failed to observe ${association.displayName}", e)
-                }
-            }
-
-            val intent = Intent(this, MonitoringService::class.java)
-            startForegroundService(intent)
-        }
-        else
-        {
-            Toast.makeText(this, "No devices found", Toast.LENGTH_SHORT).show()
-        }
+        val intent = Intent(this, MonitoringService::class.java)
+        startForegroundService(intent)
     }
 
     private inner class DeviceAdapter(
