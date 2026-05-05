@@ -24,21 +24,57 @@ class MonitoringService : Service() {
         const val ACTION_STOP_MONITORING = "com.luracavez.hotspotforbluetoothdevice.STOP_MONITORING"
     }
 
+    private val deviceManager: CompanionDeviceManager? by lazy {
+        getSystemService(CompanionDeviceManager::class.java)
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+
+        val associations = deviceManager?.myAssociations
+        if (associations != null) {
+            for (association in associations) {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                        val observeRequest = ObservingDevicePresenceRequest.Builder()
+                            .setAssociationId(association.id)
+                            .build()
+                        deviceManager!!.startObservingDevicePresence(observeRequest)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        deviceManager!!.startObservingDevicePresence(association.deviceMacAddress!!.toString())
+                    }
+                    Log.d(LOG_TAG, "Started observing: ${association.id} ${association.displayName}")
+                } catch (e: Exception) {
+                    Log.e(LOG_TAG, "Failed to start observing ${association.id} ${association.displayName}", e)
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP_MONITORING) {
-            CompanionService.active = false
-            stopMonitoring()
+            Log.d(LOG_TAG, "Stopping monitoring...")
+
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
             return START_NOT_STICKY
         }
 
-        CompanionService.active = true
+        Log.d(LOG_TAG, "Starting monitoring...")
         showForegroundNotification()
         return START_STICKY
+    }
+
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Device Monitoring Service",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        val manager = getSystemService(NotificationManager::class.java)
+        manager?.createNotificationChannel(channel)
     }
 
     private fun showForegroundNotification() {
@@ -65,29 +101,32 @@ class MonitoringService : Service() {
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.action_stop), stopPendingIntent)
             .build()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
-    }
-
-    private fun stopMonitoring() {
-        Log.d(LOG_TAG, "Stopping all device monitoring...")
-
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Device Monitoring Service",
-            NotificationManager.IMPORTANCE_LOW
-        )
-        val manager = getSystemService(NotificationManager::class.java)
-        manager?.createNotificationChannel(channel)
+    override fun onDestroy() {
+        super.onDestroy()
+
+        val associations = deviceManager?.myAssociations
+        if (associations != null) {
+            for (association in associations) {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                        val observeRequest = ObservingDevicePresenceRequest.Builder()
+                            .setAssociationId(association.id)
+                            .build()
+                        deviceManager!!.stopObservingDevicePresence(observeRequest)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        deviceManager!!.stopObservingDevicePresence(association.deviceMacAddress!!.toString())
+                    }
+                    Log.d(LOG_TAG, "Stopped observing: ${association.id} ${association.displayName}")
+                } catch (e: Exception) {
+                    Log.e(LOG_TAG, "Failed to stop observing ${association.id} ${association.displayName}", e)
+                }
+            }
+        }
     }
 }

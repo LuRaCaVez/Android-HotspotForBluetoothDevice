@@ -14,8 +14,6 @@ class CompanionService : CompanionDeviceService() {
 
     companion object {
         private val activeDeviceIds = Collections.synchronizedSet(mutableSetOf<String>())
-
-        var active = false
     }
 
     /**
@@ -76,9 +74,6 @@ class CompanionService : CompanionDeviceService() {
     private fun updateHotspotState() {
         val shouldBeEnabled = activeDeviceIds.isNotEmpty()
         Log.d(LOG_TAG, "Active device count: ${activeDeviceIds.size}. Hotspot active: $shouldBeEnabled")
-        if (active)
-        {
-            HotspotManager.toggleHotspot(this, shouldBeEnabled)
-        }
+        HotspotManager.toggleHotspot(this, shouldBeEnabled)
     }
 }

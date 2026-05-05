@@ -6,7 +6,6 @@ import android.companion.AssociationRequest
 import android.companion.BluetoothDeviceFilter
 import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
-import android.companion.ObservingDevicePresenceRequest
 import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
@@ -45,13 +44,14 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) {
-            val association: AssociationInfo? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                result.data?.getParcelableExtra(CompanionDeviceManager.EXTRA_ASSOCIATION, AssociationInfo::class.java)
+            var association: AssociationInfo? = null
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                association = result.data?.getParcelableExtra(CompanionDeviceManager.EXTRA_ASSOCIATION, AssociationInfo::class.java)
             } else {
                 @Suppress("DEPRECATION")
-                result.data?.getParcelableExtra(CompanionDeviceManager.EXTRA_ASSOCIATION)
+                association = result.data?.getParcelableExtra(CompanionDeviceManager.EXTRA_ASSOCIATION)
             }
-            
+
             val deviceName = association?.displayName ?: "Device"
             Log.d(LOG_TAG, "Association successful: $deviceName")
             Toast.makeText(this, "$deviceName paired successfully!", Toast.LENGTH_SHORT).show()
@@ -153,7 +153,6 @@ class MainActivity : AppCompatActivity() {
         val manager = deviceManager ?: return
         
         val request = AssociationRequest.Builder()
-            .addDeviceFilter(BluetoothDeviceFilter.Builder().build())
             .addDeviceFilter(BluetoothLeDeviceFilter.Builder().build())
             .build()
 
@@ -175,23 +174,6 @@ class MainActivity : AppCompatActivity() {
                             Log.d(LOG_TAG, "Removing duplicate association: ${old.id}")
                             manager.disassociate(old.id)
                         }
-                    }
-
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                            val observeRequest = ObservingDevicePresenceRequest.Builder()
-                                .setAssociationId(associationInfo.id)
-                                .build()
-                            manager.startObservingDevicePresence(observeRequest)
-                        } else {
-                            if (address != null) {
-                                @Suppress("DEPRECATION")
-                                manager.startObservingDevicePresence(address)
-                            }
-                        }
-                        Log.d(LOG_TAG, "Started observing: $address ${associationInfo.id}")
-                    } catch (e: Exception) {
-                        Log.e(LOG_TAG, "Failed to observe ${associationInfo.id}", e)
                     }
 
                     loadAssociations()

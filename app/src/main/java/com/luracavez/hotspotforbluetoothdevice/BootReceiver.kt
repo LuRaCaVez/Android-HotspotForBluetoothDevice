@@ -10,7 +10,7 @@ private const val LOG_TAG = "BootReceiver"
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            Log.d(LOG_TAG, "Boot completed, restoring associations...")
+            Log.d(LOG_TAG, "Boot completed, starting service...")
 
             val serviceIntent = Intent(context, MonitoringService::class.java)
             context.startForegroundService(serviceIntent)
